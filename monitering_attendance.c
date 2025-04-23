@@ -51,7 +51,10 @@ Student *createStudent(int id, const char *name)
     newStudent->name[MAX_NAME_LEN - 1] = '\0';
     for (int i = 0; i < MAX_SUBJECTS; i++)
     {
-        memset(newStudent->subjects[i].days, 0, sizeof(newStudent->subjects[i].days));
+        for (int j = 0; j < MAX_DAYS; j++)
+        {
+            newStudent->subjects[i].days[j] = -1;
+        }
     }
     newStudent->next = NULL;
     return newStudent;
@@ -81,6 +84,30 @@ Student *searchStudentById(int id)
         }
     }
     return NULL;
+}
+
+int total_percentage(Student *student)
+{
+    int present = 0, total = 0;
+
+    for (int i = 0; i < subjectCount; i++)
+    {
+        for (int day = 0; day < MAX_DAYS; day++)
+        {
+            if (student->subjects[i].days[day] != -1)
+            {
+                total++;
+                if (student->subjects[i].days[day] == 1)
+                {
+                    present++;
+                }
+            }
+        }
+    }
+
+    if (total == 0) return 0;
+    float percentage = (float)present / total * 100;
+    return (int)(percentage + 0.5f);
 }
 
 void deleteStudentById(int id)
@@ -151,6 +178,16 @@ void markAttendance()
         return;
     }
 
+    for (int i = 0; i < TABLE_SIZE; i++)
+    {
+        Student *current = hashTable[i];
+        while (current != NULL)
+        {
+            current->subjects[subjectIndex].days[day - 1] = 0;
+            current = current->next;
+        }
+    }
+
     int id = 0;
     printf(
         "Enter last 4 digits of student ID to mark attendance for %s on day %d (or -1 to stop): ",
@@ -178,7 +215,7 @@ void markAttendance()
 
         if (student)
         {
-            student->subjects[subjectIndex].days[day - 1] = 1;
+            student->subjects[subjectIndex].days[day - 1] = 1; // Mark as present
             printf("Marked %s (ID: %d) as present for %s on day %d.\n", student->name, student->id,
                    subject, day);
         }
@@ -244,7 +281,7 @@ void generateReport(const char *filename, const char *subject)
         {
             for (int day = 0; day < MAX_DAYS; day++)
             {
-                if (current->subjects[subjectIndex].days[day])
+                if (current->subjects[subjectIndex].days[day] != -1)
                 {
                     if (day + 1 < minDay)
                         minDay = day + 1;
@@ -282,7 +319,14 @@ void generateReport(const char *filename, const char *subject)
             fprintf(file, "%-10d %-30s", current->id, current->name);
             for (int day = minDay; day <= maxDay; day++)
             {
-                fprintf(file, " %-5s", current->subjects[subjectIndex].days[day - 1] ? "P" : "A");
+                if (current->subjects[subjectIndex].days[day - 1] == 1)
+                {
+                    fprintf(file, " P  ");
+                }
+                else
+                {
+                    fprintf(file, " A  ");
+                }
             }
             fprintf(file, "\n");
             current = current->next;
@@ -311,35 +355,51 @@ void viewAttendance()
     }
 
     printf("\nAttendance for %s (ID: %d):\n", student->name, student->id);
-    printf(
-        "======================================================================================\n");
+    printf("=============================================================================================\n");
 
     for (int part = 0; part < 3; part++)
     {
         int startDay = part * 10 + 1;
         int endDay = (part == 2) ? MAX_DAYS : startDay + 9;
 
-        printf("| %-20s", "Subject");
+        printf("| " BOLD BLUE "%-15s" RESET, "Subject");
         for (int day = startDay; day <= endDay; day++)
         {
-            printf("| Day%-2d ", day);
+            printf("| " BOLD BLUE "Day%-2d " RESET, day);
         }
         printf("|\n");
-        printf("==================================================================================="
-               "===\n");
+        printf("-----------------------------------------------------------------------------------------------\n");
 
         for (int i = 0; i < subjectCount; i++)
         {
-            printf("| %-20s", subjectList[i]);
+            printf("| " BOLD BLUE "%-15s" RESET, subjectList[i]);
             for (int day = startDay - 1; day < endDay; day++)
             {
-                printf("| %-5s ", student->subjects[i].days[day] ? "P" : "A");
+                if (student->subjects[i].days[day] == -1)
+                {
+                    printf("| %-5s ", "NULL");
+                }
+                else if (student->subjects[i].days[day] == 1)
+                {
+                    printf("| " GREEN "P" RESET "   ");
+                }
+                else
+                {
+                    printf("| " RED "A" RESET "   ");
+                }
             }
             printf("|\n");
         }
-        printf("==================================================================================="
-               "===\n");
+        printf("----------------------------------------------------------------------------------------------\n");
     }
+
+    int percentage = total_percentage(student);
+    printf("\nTotal Attendance Percentage: %d%%\n", percentage);
+}
+
+void printColoredMessage(const char *message, const char *color)
+{
+    printf("%s%s%s\n", color, message, RESET);
 }
 
 void freeHashTable()
@@ -355,11 +415,6 @@ void freeHashTable()
         }
         hashTable[i] = NULL;
     }
-}
-
-void printColoredMessage(const char *message, const char *color)
-{
-    printf("%s%s%s\n", color, message, RESET);
 }
 
 int main()
